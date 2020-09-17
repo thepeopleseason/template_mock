@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+ "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <title>Mocking in Django Templates</title>
+  <meta name="copyright"
+   content="Copyright &#169; 2007 CXRi" />
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+   href="Slidy/slidy.css" />
+  <link rel="stylesheet" type="text/css" media="screen, projection, print"
+   href="Slidy/w3c-blue.css" />
+  <script src="Slidy/slidy.js"
+   type="text/javascript"></script>
+  <style type="text/css">
+  </style>
+</head>
+<body>
+
+<div class="background">
+  <img id="head-icon" alt="graphic with four colored squares"
+    src="Slidy/icon-blue.png" />
+</div>
+
+<div class="slide cover title">
+  <!-- hidden style graphics to ensure they are saved with other content -->
+  <img class="hidden" src="Slidy/bullet.png" alt="" />
+  <img class="hidden" src="Slidy/fold.gif" alt="" />
+  <img class="hidden" src="Slidy/unfold.gif" alt="" />
+  <img class="hidden" src="Slidy/fold-dim.gif" alt="" />
+  <img class="hidden" src="Slidy/nofold-dim.gif" alt="" />
+
+  <img class="hidden" src="Slidy/unfold-dim.gif" alt="" />
+  <img class="hidden" src="Slidy/bullet-fold.gif" alt="" />
+  <img class="hidden" src="Slidy/bullet-unfold.gif" alt="" />
+  <img class="hidden" src="Slidy/bullet-fold-dim.gif" alt="" />
+  <img class="hidden" src="Slidy/bullet-nofold-dim.gif" alt="" />
+  <img class="hidden" src="Slidy/bullet-unfold-dim.gif" alt="" />
+
+<h1>mocking Django Templates</h1>
+
+<p><a href="http://friendfeed.com/thepeopleseason">James Hsiao</a>,
+&lt;<a href="mailto:james.hsiao@coxinc.com">james.hsiao@coxinc.com</a>&gt;<br />
+</p>
+</div>
+
+<div class="slide">
+<h1> Mocking in Django Templates </h1>
+<center><img src="nelson_muntz_ha_ha.jpg"></center>
+</div>
+
+<div class="slide">
+<h1> Mock </h1>
+<ul class="incremental">
+<li> Version: 0.7.2 </li>
+<li> Callable </li>
+<li> Attributes created as new mocks when accessed </li>
+<li><code> &gt;&gt;&gt; foo = mock.Mock()</code></li>
+<li><code> &gt;&gt;&gt; foo.bar</code></li>
+<li><code> &lt;Mock name='mock.bar' id='205103500'&gt;</code></li>
+<li><code> &gt;&gt;&gt; foo.bar.baz</code></li>
+<li><code> &lt;Mock name='mock.bar.baz' id='205103468'&gt;</code></li>
+<li><code> &gt;&gt;&gt; foo.bar.baz.qux</code></li>
+<li><code> &lt;Mock name='mock.bar.baz.qux' id='205105228'&gt;</code></li>
+<li><code> &gt;&gt;&gt; foo.bar.baz.qux.quux()</code></li>
+<li><code> &lt;mock.Mock object at 0xc3aa44c&gt;</code></li>
+</ul>
+</div>
+
+
+
+<div class="slide">
+<h1> A code sample </h1>
+<pre><small>
+import mock
+from django.template import Variable, Context
+
+foo = mock.Mock()
+foo.some_attribute.some_method.return_value = 'bar'
+some_context = Context({ 'foo': foo })
+foo_var = Variable('foo')
+
+print foo_var.resolve(some_context)
+print foo_var.resolve(some_context).some_attribute.some_method()
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> Output </h1>
+<pre><small>
+&gt;&gt;&gt; print foo_var.resolve(some_context)
+''
+&gt;&gt;&gt; print foo_var.resolve(some_context).some_attribute.some_method()
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+AttributeError: 'str' object has no attribute 'some_attribute'
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> From django/template/base.py (Variable._resolve_lookup())</h1>
+<pre><small>
+if callable(current):
+    if getattr(current, 'alters_data', False):
+        current = settings.TEMPLATE_STRING_IF_INVALID
+    else:
+        try: # method call (assuming no args required)
+            current = current()
+        except TypeError: # arguments *were* required
+            # GOTCHA: This will also catch any TypeError
+            # raised in the function itself.
+            current = settings.TEMPLATE_STRING_IF_INVALID # invalid method call
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> From django/template/base.py </h1>
+<pre><small>
+if callable(current):
+    <em>if getattr(current, 'alters_data', False):
+        current = settings.TEMPLATE_STRING_IF_INVALID</em>
+    else:
+        try: # method call (assuming no args required)
+            current = current()
+        except TypeError: # arguments *were* required
+            # GOTCHA: This will also catch any TypeError
+            # raised in the function itself.
+            current = settings.TEMPLATE_STRING_IF_INVALID # invalid method call
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> A code sample (pt2) </h1>
+<pre><small>
+import mock
+from django.template import Variable
+
+foo = mock.Mock()
+foo.some_attribute.some_method.return_value = 'bar'
+some_context = Context({ 'foo': foo })
+foo_var = Variable('foo')
+<em>foo.alters_data = False</em>
+
+print foo_var.resolve(some_context)
+print foo_var.resolve(some_context).some_attribute.some_method()
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> Output </h1>
+<pre><small>
+&gt;&gt;&gt; print foo_var.resolve(some_context)
+&lt;mock.Mock object at 0xc395acc&gt;
+&gt;&gt;&gt; print foo_var.resolve(some_context).some_attribute.some_method()
+&lt;mock.Mock object at 0xc39a08c&gt;
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> From django/template/base.py </h1>
+<pre><small>
+if callable(current):
+    <em>if getattr(current, 'alters_data', False):
+        current = settings.TEMPLATE_STRING_IF_INVALID</em>
+    else:
+        try: # method call (assuming no args required)
+            current = current()
+        except TypeError: # arguments *were* required
+            # GOTCHA: This will also catch any TypeError
+            # raised in the function itself.
+            current = settings.TEMPLATE_STRING_IF_INVALID # invalid method call
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> From django/template/base.py </h1>
+<pre><small>
+if callable(current):
+    if getattr(current, 'alters_data', False):
+        current = settings.TEMPLATE_STRING_IF_INVALID
+    else:
+        try: # method call (assuming no args required)
+            <em>current = current()</em>
+        except TypeError: # arguments *were* required
+            # GOTCHA: This will also catch any TypeError
+            # raised in the function itself.
+            current = settings.TEMPLATE_STRING_IF_INVALID # invalid method call
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> A code sample (pt3) </h1>
+<pre><small>
+import mock
+from django.template import Variable
+
+foo = mock.Mock()
+foo.some_attribute.some_method.return_value = 'bar'
+some_context = Context({ 'foo': foo })
+foo_var = Variable('foo')
+foo.alters_data = False
+<em>foo.return_value = foo</em>
+
+print foo_var.resolve(some_context)
+print foo_var.resolve(some_context).some_attribute.some_method()
+</small></pre>
+</div>
+
+<div class="slide">
+<h1> Output </h1>
+<pre><small>
+&gt;&gt;&gt; print foo_var.resolve(some_context)
+&lt;mock.Mock object at 0xc395e0c&gt;
+&gt;&gt;&gt; print foo_var.resolve(some_context).some_attribute.some_method()
+'bar'
+</small></pre>
+</div>
+
+
+<div class="slide">
+<h1> Questions? </h1>
+<ul class="incremental">
+<li> Anyone? </li>
+<li> Anyone? </li>
+<li> <center><img src="stein.jpg"></center><br/> Something...D-O-O Economics? </li>
+<li> Voodoo Economics? </li>
+</ul></div>
+
+
+</body>
+</html>
